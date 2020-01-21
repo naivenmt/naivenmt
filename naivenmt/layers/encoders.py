@@ -49,15 +49,14 @@ class UniRNNEncoder(tf.keras.Model):
             output: Tensor, encoder's output, shape (batch_size, src_seq_len, units)
             state: Tensor, encoder's state, shape (batch_size, units). 
                 If merge mode is `concat`, shape is (batch_size, 2 * units).
-                If RNN is a LSTM, returns hidden state `state_h`, rather not cell state `state_c`
+                If RNN is a LSTM, returns tuple (state_h, state_c), each shape is (batch_size, units)
         """
         x = inputs
         x = self.embedding(x)
         if 'lstm' == self.unit_name:
             # output shape: (batch_size, src_seq_len), state_[c|h] shape: (batch_size, units)
             output, state_h, state_c = self.rnn(x)
-            # for LSTM, we use hidden state `state_h`, rather not cell state `state_c`
-            return output, state_h
+            return output, (state_h, state_c)
 
         output, state = self.rnn(x)
         return output, state
@@ -97,31 +96,30 @@ class BiRNNEncoder(tf.keras.Model):
                 If merge_mode is `concat`, the shape is (batch_size, src_seql_len, 2 * units)
             state: Tensor, encoder's state, shape (batch_size, units). 
                 If merge_mode is `concat`, the shape is (batch_size, 2 * units).
-                If RNN is LSTM, returns hidden state `state_h`, rather not cell state `state_c`
+                If RNN is LSTM, returns tuple (state_h, state_c), each shape is (batch_size, units)
         """
         x = inputs
         x = self.embedding(x)
 
         if 'lstm' == self.unit_name:
             # bidirectional lstm does not merge state_h and state_c
-            # we use hidden state `state_h`, rather not cell state `state_c`
             output, state_fw_h, state_fw_c, state_bw_h, state_bw_c = self.rnn(x)
             if 'ave' == self.merge_mode:
                 state_h = (state_fw_h + state_bw_h) / 2.0
-                # state_c = (state_fw_c + state_bw_c) / 2.0
+                state_c = (state_fw_c + state_bw_c) / 2.0
             elif 'sum' == self.merge_mode:
                 state_h = (state_fw_h + state_bw_h)
-                # state_c = (state_fw_c + state_bw_c)
+                state_c = (state_fw_c + state_bw_c)
             elif 'mul' == self.merge_mode:
                 state_h = state_fw_h * state_bw_h
-                # state_c = state_fw_c * state_bw_c
+                state_c = state_fw_c * state_bw_c
             elif 'concat' == self.merge_mode:
                 state_h = tf.concat([state_fw_h, state_bw_h], axis=-1)
-                # state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
+                state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
             else:
                 state_h = tf.concat([state_fw_h, state_bw_h], axis=-1)
-                # state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
-            return output, state_h
+                state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
+            return output, (state_h, state_c)
         # bidirectional gru does not merge state
         output, state_fw, state_bw = self.rnn(x)
         if 'ave' == self.merge_mode:
