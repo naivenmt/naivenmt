@@ -32,10 +32,9 @@ class EncodersTest(tf.test.TestCase):
     def testUniLSTMEncoder(self):
         x = tf.constant([1, 2, 3, 4, 5], shape=(1, 5))
         encoder = UniRNNEncoder(UNITS, VOCABS_ZIE, EMBEDDING_SIZE, unit_name='lstm')
-        output, (state_h, state_c) = encoder(x)
+        output, state = encoder(x)
         self.assertAllEqual([1, 5, UNITS], output.shape)
-        self.assertAllEqual([1, UNITS], state_h.shape)
-        self.assertAllEqual([1, UNITS], state_c.shape)
+        self.assertAllEqual([1, UNITS], state.shape)
 
     def testBiGRUEncoder(self):
         x = tf.constant([1, 2, 3, 4, 5], shape=(1, 5))
@@ -55,17 +54,15 @@ class EncodersTest(tf.test.TestCase):
         x = tf.constant([1, 2, 3, 4, 5], shape=(1, 5))
         # lstm in `concat` mode
         encoder = BiRNNEncoder(UNITS, VOCABS_ZIE, EMBEDDING_SIZE, unit_name='lstm', merge_mode='concat')
-        output, (state_h, state_c) = encoder(x)
+        output, state = encoder(x)
         self.assertAllEqual([1, 5, 2 * UNITS], output.shape)
-        self.assertAllEqual([1, 2 * UNITS], state_c.shape)
-        self.assertAllEqual([1, 2 * UNITS], state_h.shape)
+        self.assertAllEqual([1, 2 * UNITS], state.shape)
 
         for mode in ['sum', 'ave', 'mul']:
             encoder = BiRNNEncoder(UNITS, VOCABS_ZIE, EMBEDDING_SIZE, unit_name='lstm', merge_mode=mode)
-            output, (state_c, state_h) = encoder(x)
+            output, state = encoder(x)
             self.assertAllEqual([1, 5, UNITS], output.shape)
-            self.assertAllEqual([1, UNITS], state_h.shape)
-            self.assertAllEqual([1, UNITS], state_c.shape)
+            self.assertAllEqual([1, UNITS], state.shape)
 
 
 if __name__ == "__main__":

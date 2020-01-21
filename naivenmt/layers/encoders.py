@@ -15,45 +15,7 @@ import logging
 
 import tensorflow as tf
 
-
-def _build_uni_rnn(unit_name, units):
-    valid_unit_names = ['lstm', 'gru']
-    if unit_name.lower() not in valid_unit_names:
-        raise ValueError('Invalid `unit_name`: %s, must be one of %s' % (unit_name, valid_unit_names))
-    if 'lstm' == unit_name.lower():
-        return tf.keras.layers.LSTM(units, return_sequences=True, return_state=True)
-    elif 'gru' == unit_name.lower():
-        return tf.keras.layers.GRU(units, return_sequences=True, return_state=True)
-    else:
-        raise ValueError('Invalid `unit_name`: %s, must be one of %s' % (unit_name, valid_unit_names))
-
-
-def _build_bi_rnn(unit_name, units, merge_mode='add'):
-    valid_unit_names = ['lstm', 'gru']
-    if unit_name.lower() not in valid_unit_names:
-        raise ValueError('Invalid `unit_name`: %s, must be one of %s' % (unit_name, valid_unit_names))
-    if 'lstm' == unit_name.lower():
-        rnn = tf.keras.layers.Bidirectional(
-            layer=tf.keras.layers.LSTM(units, return_sequences=True, return_state=True, go_backwards=False),
-            backward_layer=tf.keras.layers.LSTM(units, return_sequences=True, return_state=True, go_backwards=True),
-            merge_mode=merge_mode)
-        return rnn
-    elif 'gru' == unit_name.lower():
-        rnn = tf.keras.layers.Bidirectional(
-            layer=tf.keras.layers.GRU(units, return_sequences=True, return_state=True, go_backwards=False),
-            backward_layer=tf.keras.layers.GRU(units, return_sequences=True, return_state=True, go_backwards=True),
-            merge_mode=merge_mode)
-        return rnn
-    else:
-        raise ValueError('Invalid `unit_name`: %s, must be one of %s' % (unit_name, valid_unit_names))
-
-
-def _build_embedding(vocab_size, embedding_size, embedding):
-    if embedding is not None:
-        return embedding
-    if vocab_size is None or embedding_size is None:
-        raise ValueError('Both `vocab_size` and `embedding_size` can not be None if `embedding` is None.')
-    return tf.keras.layers.Embedding(vocab_size, embedding_size)
+from naivenmt import utils
 
 
 class UniRNNEncoder(tf.keras.Model):
@@ -72,8 +34,8 @@ class UniRNNEncoder(tf.keras.Model):
         super(UniRNNEncoder, self).__init__(name='UniRNNEncoder')
         self.units = units
         self.unit_name = unit_name.lower()
-        self.rnn = _build_uni_rnn(unit_name, units)
-        self.embedding = _build_embedding(vocab_size, embedding_size, embedding)
+        self.rnn = utils.build_uni_rnn(unit_name, units)
+        self.embedding = utils.build_embedding(vocab_size, embedding_size, embedding)
 
     def call(self, inputs, training=None, mask=None):
         """Forward pass.
@@ -93,7 +55,8 @@ class UniRNNEncoder(tf.keras.Model):
         if 'lstm' == self.unit_name:
             # output shape: (batch_size, src_seq_len), state_[c|h] shape: (batch_size, units)
             output, state_h, state_c = self.rnn(x)
-            return output, (state_h, state_c)
+            # for LSTM, we use hidden state `state_h`, rather not cell state `state_c`
+            return output, state_h
 
         output, state = self.rnn(x)
         return output, state
@@ -117,8 +80,8 @@ class BiRNNEncoder(tf.keras.Model):
         self.units = units
         self.unit_name = unit_name.lower()
         self.merge_mode = merge_mode.lower()
-        self.rnn = _build_bi_rnn(unit_name, units, merge_mode)
-        self.embedding = _build_embedding(vocab_size, embedding_size, embedding)
+        self.rnn = utils.build_bi_rnn(unit_name, units, merge_mode)
+        self.embedding = utils.build_embedding(vocab_size, embedding_size, embedding)
 
     def call(self, inputs, training=None, mask=None, initial_state=None):
         """Forward pass.
@@ -141,23 +104,24 @@ class BiRNNEncoder(tf.keras.Model):
 
         if 'lstm' == self.unit_name:
             # bidirectional lstm does not merge state_h and state_c
+            # we use hidden state `state_h`, rather not cell state `state_c`
             output, state_fw_h, state_fw_c, state_bw_h, state_bw_c = self.rnn(x)
             if 'ave' == self.merge_mode:
                 state_h = (state_fw_h + state_bw_h) / 2.0
-                state_c = (state_fw_c + state_bw_c) / 2.0
+                # state_c = (state_fw_c + state_bw_c) / 2.0
             elif 'sum' == self.merge_mode:
                 state_h = (state_fw_h + state_bw_h)
-                state_c = (state_fw_c + state_bw_c)
+                # state_c = (state_fw_c + state_bw_c)
             elif 'mul' == self.merge_mode:
                 state_h = state_fw_h * state_bw_h
-                state_c = state_fw_c * state_bw_c
+                # state_c = state_fw_c * state_bw_c
             elif 'concat' == self.merge_mode:
                 state_h = tf.concat([state_fw_h, state_bw_h], axis=-1)
-                state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
+                # state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
             else:
                 state_h = tf.concat([state_fw_h, state_bw_h], axis=-1)
-                state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
-            return output, (state_h, state_c)
+                # state_c = tf.concat([state_fw_c, state_bw_c], axis=-1)
+            return output, state_h
         # bidirectional gru does not merge state
         output, state_fw, state_bw = self.rnn(x)
         if 'ave' == self.merge_mode:
