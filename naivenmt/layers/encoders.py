@@ -48,7 +48,8 @@ class UniRNNEncoder(tf.keras.Model):
         Returns:
             output: Tensor, encoder's output, shape (batch_size, src_seq_len, units)
             state: Tensor, encoder's state, shape (batch_size, units). 
-                If RNN is a LSTM, returns (state_h, state_c), these two state has the same shape (batch_size, units)
+                If merge mode is `concat`, shape is (batch_size, 2 * units).
+                If RNN is a LSTM, returns hidden state `state_h`, rather not cell state `state_c`
         """
         x = inputs
         x = self.embedding(x)
@@ -95,9 +96,8 @@ class BiRNNEncoder(tf.keras.Model):
             output: Tensor, encoder's output, shape (batch_size, src_seq_len, units). 
                 If merge_mode is `concat`, the shape is (batch_size, src_seql_len, 2 * units)
             state: Tensor, encoder's state, shape (batch_size, units). 
-                If merge_mode is `concat`, the shape is (batch_size, src_seq_len, 2 * units).
-                If RNN is LSTM, returns (state_h, state_c), these two state has same shape (batch_size, units),
-                or (batch_size, 2 * units) in concat mode.
+                If merge_mode is `concat`, the shape is (batch_size, 2 * units).
+                If RNN is LSTM, returns hidden state `state_h`, rather not cell state `state_c`
         """
         x = inputs
         x = self.embedding(x)
